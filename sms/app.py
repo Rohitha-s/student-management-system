@@ -236,11 +236,14 @@ def home():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM students WHERE deleted_at IS NULL")
     students = cursor.fetchall()
+    cursor.execute("SELECT * FROM users WHERE deleted_at IS NULL")
+    users = cursor.fetchall()
     conn.close()
 
     return render_template(
         "home.html",
         students=students,
+        users=users,
         role=session["role"],
         username=session["user"]
     )
@@ -294,6 +297,30 @@ def delete(id):
     conn.close()
     return redirect("/home")
 
+# Deleting user
+@app.route("/delete-user/<int:id>")
+def delete_user(id):
+    if "user" not in session:
+        return redirect("/login")
+
+    if session.get("role") != "admin":
+        return "Access Denied", 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE users
+        SET deleted_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (id,))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/home")
+
 # Editing student
 @app.route("/edit/<int:id>", methods=["GET","POST"])
 def edit(id):
@@ -334,14 +361,63 @@ def edit(id):
         "edit.html",
         student=student
     )
+    
+    # Editing User
+@app.route("/edit-user/<int:id>", methods=["GET", "POST"])
+def edit_user(id):
+    if "user" not in session:
+        return redirect("/login")
 
+    if session.get("role") != "admin":
+        return "Access Denied", 403
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if request.method == "POST":
+
+        username = request.form["username"]
+        email = request.form["email"]
+        phone_number = request.form["phone_number"]
+        role = request.form["role"]
+
+        cursor.execute("""
+            UPDATE users
+            SET username = ?,
+                email = ?,
+                phone_number = ?,
+                role = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (username, email, phone_number, role, id))
+
+        conn.commit()
+        conn.close()
+
+        return redirect("/home")
+
+    cursor.execute("""
+        SELECT *
+        FROM users
+        WHERE id = ?
+    """, (id,))
+
+    user = cursor.fetchone()
+
+    conn.close()
+
+    return render_template(
+        "edit_user.html",
+        user=user
+    )
+    
 # logout
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/")
 
-# delete student
+# deleted students
 @app.route("/deleted")
 def deleted_students():
 
@@ -364,10 +440,9 @@ def deleted_students():
         "deleted.html",
         students=students
     )
-    
-# delete user
-@app.route("/delete-user/<int:id>")
-def delete_user(id):
+# deleted users
+@app.route("/deleted-users")
+def deleted_users():
 
     if "user" not in session:
         return "Access Restricted"
@@ -379,15 +454,19 @@ def delete_user(id):
     cursor = conn.cursor()
 
     cursor.execute("""
-    UPDATE users
-    SET deleted_at IS NOT NULL
-    WHERE id=?
-    """,(id,))
+        SELECT *
+        FROM users
+        WHERE deleted_at IS NOT NULL
+    """)
 
-    conn.commit()
+    users = cursor.fetchall()
+
     conn.close()
 
-    return redirect("/users")
+    return render_template(
+        "deleted_users.html",
+        users=users
+    )
 # restoring the del student 
 @app.route("/restore/<int:id>")
 def restore(id):
@@ -413,6 +492,31 @@ def restore(id):
     conn.close()
 
     return redirect("/deleted")
+
+# restoring the del user 
+@app.route("/restore-user/<int:id>")
+def restore_user(id):
+
+    if "user" not in session:
+        return "Access Restricted"
+
+    if session["role"] != "admin":
+        return "Access Restricted"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE users
+        SET deleted_at = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (id,))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/home")
 
 if __name__=="__main__":
     app.run(debug=True)

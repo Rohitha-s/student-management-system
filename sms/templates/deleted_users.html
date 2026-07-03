@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deleted Users</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-900 text-white">
+
+<div class="max-w-6xl mx-auto mt-10">
+
+    <h1 class="text-3xl font-bold mb-6">
+        Deleted Users
+    </h1>
+
+    <div class="w-full rounded-2xl border border-gray-800 bg-gray-900 overflow-hidden shadow-2xl">
+
+        <table class="w-full table-fixed">
+
+            <tr class="bg-slate-800">
+                <th class="p-3">ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Phone Number</th>
+                <th>Role</th>
+                <th>Restore</th>
+            </tr>
+
+            {% for user in users %}
+
+            <tr class="text-center border-b border-slate-700">
+
+                <td class="p-3">{{ user.id }}</td>
+
+                <td>{{ user.username }}</td>
+
+                <td>{{ user.email }}</td>
+
+                <td>{{ user.phone_number }}</td>
+
+                <td>{{ user.role }}</td>
+
+                <td>
+
+                    <a
+                    href="/restore-user/{{ user.id }}"
+                    class="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white
+                           transition duration-200 hover:bg-blue-500 active:scale-[0.98]">
+
+                        Restore
+
+                    </a>
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+    </div>
+
+    <br>
+
+    <a
+    href="/home"
+    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white
+           transition duration-200 hover:bg-blue-500 active:scale-[0.98]">
+
+        Back Home
+
+    </a>
+
+</div>
+
+</body>
+</html>
