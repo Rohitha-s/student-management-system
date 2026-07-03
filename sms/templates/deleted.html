@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deleted Students</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white">
+<div class="max-w-5xl mx-auto mt-10">
+    <h1 class="text-3xl font-bold mb-6">
+        Deleted Students
+    </h1>
+    <div class="w-full rounded-2xl border border-gray-800 bg-gray-900 overflow-hidden shadow-2xl">
+    <table class="w-full table-fixed">
+        <tr class="bg-slate-800">
+            <th class="p-3">ID</th>
+            <th>First Name</th>
+            <th>Last Name</th>
+            <th>Email</th>
+            <th>Restore</th>
+        </tr>
+
+        {% for student in students %}
+        <tr class="text-center border-b border-slate-700">
+            <td class="p-3">{{ student.id }}</td>
+            <td>{{ student.first_name }}</td>
+            <td>{{ student.last_name }}</td>
+            <td>{{ student.email }}</td>
+            <td>
+                <a href="/restore/{{ student.id }}"
+                class="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white
+                         transition duration-200 hover:bg-blue-500 active:scale-[0.98]"">
+                    Restore
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    </div>
+    <br>
+    <a href="/home"
+       class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white
+                         transition duration-200 hover:bg-blue-500 active:scale-[0.98]"">
+       Back Home
+    </a>
+</div>
+</body>
+</html>

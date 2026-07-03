@@ -38,8 +38,8 @@ def db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS students(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    fname TEXT,
-    lname TEXT,
+    first_name TEXT,
+    last_name TEXT,
     email TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -55,6 +55,13 @@ def db():
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
+    
+    ''' 
+    cursor.execute("""
+    ALTER TABLE students
+    ADD COLUMN deleted_at INTEGER DEFAULT 0;
+    """) 
+    '''
       
     conn.commit()
     conn.close()
@@ -118,17 +125,15 @@ def api_students():
     
     conn=get_db_connection()
     cursor=conn.cursor()
-    cursor.execute(
-        "SELECT * FROM students"
-    )
+    cursor.execute("SELECT * FROM students WHERE is_deleted = 0")
     students=cursor.fetchall()
     conn.close()
     data=[]
     for student in students:
         data.append({
             "id":student["id"],
-            "fname":student["fname"],
-            "lname":student["lname"],
+            "first_name":student["first_name"],
+            "last_name":student["last_name"],
             "email":student["email"]
         })
     return {
@@ -149,7 +154,8 @@ def api_delete(id):
         
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM students WHERE id=?",(id,))
+    cursor.execute("""UPDATE students SET deleted_at=1,
+                   updated_at=CURRENT_TIMESTAMP WHERE id=?""",(id,))
     conn.commit()
     conn.close()
     return {
@@ -178,7 +184,10 @@ def signup():
 
         if existing_user:
             conn.close()
-            return "Email already exists"
+            return render_template(
+                "signup.html",
+                error="Email already exists. Please use another email.")
+            
         cursor.execute("""
         INSERT INTO users(username,email,password,role)
         VALUES(?,?,?,?)
@@ -186,9 +195,7 @@ def signup():
         conn.commit()
         conn.close()
         return redirect("/")
-    return render_template(
-    "signup.html",
-    success="User Created Successfully!")
+    return render_template("signup.html")
     
 # login 
 @app.route("/",methods=["GET","POST"])
@@ -223,7 +230,7 @@ def home():
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students")
+    cursor.execute("SELECT * FROM students WHERE deleted_at = 0")
     students = cursor.fetchall()
     conn.close()
 
@@ -247,7 +254,7 @@ def form():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-        INSERT INTO students(fname,lname,email)
+        INSERT INTO students(first_name,last_name,email)
         VALUES(?,?,?)
         """, (first_name,last_name,email))
         conn.commit()
@@ -273,7 +280,8 @@ def delete(id):
         conn.close()
         return "Access Restricted"
     
-    cursor.execute( "DELETE FROM students WHERE id=?", (id,))
+    cursor.execute("""UPDATE students SET deleted_at = 1,
+                   updated_at = CURRENT_TIMESTAMP WHERE id=?""",(id,))
     conn.commit()
     conn.close()
     return redirect("/home")
@@ -286,7 +294,7 @@ def edit(id):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE id=?",(id,))
+    cursor.execute("SELECT * FROM students WHERE id=? AND is_deleted=0",(id,))
     student = cursor.fetchone()
     
     if student is None:
@@ -302,7 +310,7 @@ def edit(id):
         last_name=request.form["last_name"]
         email=request.form["email"]
 
-        cursor.execute("""UPDATE students SET fname=?,lname=?,email=?,
+        cursor.execute("""UPDATE students SET first_name=?,last_name=?,email=?,
         updated_at=CURRENT_TIMESTAMP WHERE id=? """,
         (first_name,last_name,email,id))
 
@@ -320,6 +328,57 @@ def edit(id):
 def logout():
     session.clear()
     return redirect("/")
+
+# deleted records 
+@app.route("/deleted")
+def deleted_students():
+
+    if session["role"] != "admin":
+        return "Access Restricted"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT *
+    FROM students
+    WHERE deleted_at=1
+    """)
+
+    students = cursor.fetchall()
+    conn.close()
+
+    return render_template(
+        "deleted.html",
+        students=students
+    )
+    
+# restoring the del data
+@app.route("/restore/<int:id>")
+def restore(id):
+
+    if "user" not in session:
+        return "Access Restricted"
+
+    if session["role"] != "admin":
+        return "Access Restricted"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE students
+    SET
+        deleted_at = 0,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id=?
+    """,(id,))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/deleted")
+
 
 if __name__=="__main__":
     app.run(debug=True)

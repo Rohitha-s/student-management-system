@@ -24,6 +24,13 @@
             + Add Student
           </button>
         </a>
+        {% if role=="admin" %}
+          <a href="/deleted"
+          class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white
+                         transition duration-200 hover:bg-blue-500 active:scale-[0.98]">  
+          Deleted Students
+          </a>
+        {% endif %}
         <a href="/logout">
           <button class="rounded-lg border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-semibold text-gray-300
                          transition duration-200 hover:bg-gray-700 active:scale-[0.98]">
@@ -51,8 +58,8 @@
           {% for student in students %}
           <tr class="transition duration-150 hover:bg-gray-800/50">
             <td class="px-6 py-4 text-gray-500">{{ loop.index }}</td>
-            <td class="px-6 py-4 font-medium text-gray-100">{{ student["fname"] }}</td>
-            <td class="px-6 py-4 text-gray-300">{{ student["lname"] }}</td>
+            <td class="px-6 py-4 font-medium text-gray-100">{{ student["first_name"] }}</td>
+            <td class="px-6 py-4 text-gray-300">{{ student["last_name"] }}</td>
             <td class="px-6 py-4 text-gray-400">{{ student["email"] }}</td>
             <td class="px-6 py-4">
               <div class="flex items-center gap-2">
