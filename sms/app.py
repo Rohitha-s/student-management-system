@@ -11,6 +11,7 @@ from flask_jwt_extended import (
 )
 
 import sqlite3
+import re
 
 from flask_jwt_extended import (
     JWTManager,
@@ -41,28 +42,25 @@ def db():
     first_name TEXT,
     last_name TEXT,
     email TEXT,
+    phone_number TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP DEFAULT NULL
     )""")
     
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL,
+    phone_number TEXT,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     role TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP DEFAULT NULL
     )""")
     
-    ''' 
-    cursor.execute("""
-    ALTER TABLE students
-    ADD COLUMN deleted_at INTEGER DEFAULT 0;
-    """) 
-    '''
-      
     conn.commit()
     conn.close()
 db()
@@ -75,7 +73,7 @@ def api_login():
 
     conn=get_db_connection()
     cursor=conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE email=?",(email,))
+    cursor.execute("SELECT * FROM users WHERE email=? AND deleted_at IS NULL",(email,))
     user=cursor.fetchone()
     conn.close()
 
@@ -125,7 +123,7 @@ def api_students():
     
     conn=get_db_connection()
     cursor=conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE is_deleted = 0")
+    cursor.execute("SELECT * FROM students WHERE deleted_at IS NULL")
     students=cursor.fetchall()
     conn.close()
     data=[]
@@ -154,7 +152,7 @@ def api_delete(id):
         
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""UPDATE students SET deleted_at=1,
+    cursor.execute("""UPDATE students SET deleted_at = CURRENT_TIMESTAMP,
                    updated_at=CURRENT_TIMESTAMP WHERE id=?""",(id,))
     conn.commit()
     conn.close()
@@ -169,15 +167,20 @@ def signup():
         username=request.form["username"]
         email=request.form["email"]
         password=request.form["password"]
-        role=request.form["role"]
+        phone_number = request.form["phone_number"]
+        role = request.form["role"]
         
+        if not re.fullmatch(r"\d{10}", phone_number):
+            return render_template("signup.html",
+        error="Phone number must contain exactly 10 digits.")
+    
         hashed_password=generate_password_hash(password)
 
         conn=get_db_connection()
         cursor=conn.cursor()
         # Check email exists
         cursor.execute(
-            "SELECT * FROM users WHERE email=?",
+            "SELECT * FROM users WHERE email=? AND deleted_at IS NULL",
             (email,)
         )
         existing_user=cursor.fetchone()
@@ -188,10 +191,11 @@ def signup():
                 "signup.html",
                 error="Email already exists. Please use another email.")
             
+        
         cursor.execute("""
-        INSERT INTO users(username,email,password,role)
-        VALUES(?,?,?,?)
-        """,(username,email,hashed_password,role))
+        INSERT INTO users(username,email,password,phone_number,role)
+        VALUES(?,?,?,?,?)""",(username,email,hashed_password,phone_number,role))
+        
         conn.commit()
         conn.close()
         return redirect("/")
@@ -230,7 +234,7 @@ def home():
     
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE deleted_at = 0")
+    cursor.execute("SELECT * FROM students WHERE deleted_at IS NULL")
     students = cursor.fetchall()
     conn.close()
 
@@ -249,14 +253,18 @@ def form():
     if request.method == "POST":
         first_name = request.form["first_name"]
         last_name = request.form["last_name"]
+        phone_number = request.form["phone_number"]
         email = request.form["email"]
+
+        if not re.fullmatch(r"\d{10}", phone_number):
+            return "Phone number must contain exactly 10 digits."
 
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-        INSERT INTO students(first_name,last_name,email)
-        VALUES(?,?,?)
-        """, (first_name,last_name,email))
+        INSERT INTO students(first_name,last_name,phone_number,email)
+        VALUES(?,?,?,?)
+        """, (first_name,last_name,phone_number,email))
         conn.commit()
         conn.close()
         return redirect("/home")
@@ -280,7 +288,7 @@ def delete(id):
         conn.close()
         return "Access Restricted"
     
-    cursor.execute("""UPDATE students SET deleted_at = 1,
+    cursor.execute("""UPDATE students SET deleted_at = CURRENT_TIMESTAMP,
                    updated_at = CURRENT_TIMESTAMP WHERE id=?""",(id,))
     conn.commit()
     conn.close()
@@ -294,7 +302,7 @@ def edit(id):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM students WHERE id=? AND is_deleted=0",(id,))
+    cursor.execute("SELECT * FROM students WHERE id=? AND deleted_at IS NULL",(id,))
     student = cursor.fetchone()
     
     if student is None:
@@ -308,11 +316,15 @@ def edit(id):
     if request.method=="POST":
         first_name=request.form["first_name"]
         last_name=request.form["last_name"]
+        phone_number=request.form["phone_number"]
         email=request.form["email"]
 
-        cursor.execute("""UPDATE students SET first_name=?,last_name=?,email=?,
+        if not re.fullmatch(r"\d{10}", phone_number):
+            return "Phone number must contain exactly 10 digits."
+        
+        cursor.execute("""UPDATE students SET first_name=?,last_name=?,phone_number=?,email=?,
         updated_at=CURRENT_TIMESTAMP WHERE id=? """,
-        (first_name,last_name,email,id))
+        (first_name,last_name,phone_number,email,id))
 
         conn.commit()
         conn.close()
@@ -329,7 +341,7 @@ def logout():
     session.clear()
     return redirect("/")
 
-# deleted records 
+# delete student
 @app.route("/deleted")
 def deleted_students():
 
@@ -342,7 +354,7 @@ def deleted_students():
     cursor.execute("""
     SELECT *
     FROM students
-    WHERE deleted_at=1
+    WHERE deleted_at IS NOT NULL
     """)
 
     students = cursor.fetchall()
@@ -353,7 +365,30 @@ def deleted_students():
         students=students
     )
     
-# restoring the del data
+# delete user
+@app.route("/delete-user/<int:id>")
+def delete_user(id):
+
+    if "user" not in session:
+        return "Access Restricted"
+
+    if session["role"] != "admin":
+        return "Access Restricted"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE users
+    SET deleted_at IS NOT NULL
+    WHERE id=?
+    """,(id,))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/users")
+# restoring the del student 
 @app.route("/restore/<int:id>")
 def restore(id):
 
@@ -369,7 +404,7 @@ def restore(id):
     cursor.execute("""
     UPDATE students
     SET
-        deleted_at = 0,
+        deleted_at = NULL,
         updated_at = CURRENT_TIMESTAMP
     WHERE id=?
     """,(id,))
@@ -378,7 +413,6 @@ def restore(id):
     conn.close()
 
     return redirect("/deleted")
-
 
 if __name__=="__main__":
     app.run(debug=True)
